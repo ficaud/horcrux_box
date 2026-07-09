@@ -8,6 +8,8 @@
 #include <zephyr/logging/log.h>
 #include <zephyr/net/wifi_mgmt.h>
 #include <zephyr/net/dhcpv4_server.h>
+#include <zephyr/net/socket.h>
+#include <string.h>
 
 LOG_MODULE_REGISTER(MAIN);
 
@@ -19,10 +21,8 @@ LOG_MODULE_REGISTER(MAIN);
 	 NET_EVENT_WIFI_AP_STA_CONNECTED | NET_EVENT_WIFI_AP_STA_DISCONNECTED)
 
 static struct net_if *ap_iface;
-static struct net_if *sta_iface;
 
 static struct wifi_connect_req_params ap_config;
-static struct wifi_connect_req_params sta_config;
 
 static struct net_mgmt_event_callback cb;
 
@@ -43,6 +43,86 @@ BUILD_ASSERT(sizeof(CONFIG_WIFI_SAMPLE_AP_NETMASK) > 1,
 
 #endif
 
+/* -------------------------------------------------------------------------
+ * Synchronisation
+ * -------------------------------------------------------------------------
+ */
+
+static struct k_sem ap_ready_sem;
+
+/* -------------------------------------------------------------------------
+ * Captive Portal HTTP Server
+ * -------------------------------------------------------------------------
+ */
+
+#define HTTP_PORT		80
+#define HTTP_BACKLOG		5
+#define HTTP_SRV_STACK_SIZE	4096
+#define HTTP_SRV_PRIORITY	5
+
+static const char http_captive_page[] =
+	"HTTP/1.1 200 OK\r\n"
+	"Content-Type: text/html\r\n"
+	"Connection: close\r\n"
+	"\r\n"
+	"<!DOCTYPE html>\r\n"
+	"<html>\r\n"
+	"<head><title>Captive Portal</title></head>\r\n"
+	"<body>\r\n"
+	"<h1>Hello World!</h1>\r\n"
+	"<p>Bienvenue sur le portail captif</p>\r\n"
+	"</body>\r\n"
+	"</html>\r\n";
+
+static void http_server_thread(void *arg1, void *arg2, void *arg3)
+{
+	int server_fd, client_fd;
+	struct sockaddr_in addr;
+	int opt = 1;
+
+	server_fd = zsock_socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+	if (server_fd < 0) {
+		LOG_ERR("HTTP: failed to create socket (%d)", errno);
+		return;
+	}
+
+	zsock_setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+
+	addr.sin_family = AF_INET;
+	addr.sin_addr.s_addr = INADDR_ANY;
+	addr.sin_port = htons(HTTP_PORT);
+
+	if (zsock_bind(server_fd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
+		LOG_ERR("HTTP: bind failed (%d)", errno);
+		zsock_close(server_fd);
+		return;
+	}
+
+	if (zsock_listen(server_fd, HTTP_BACKLOG) < 0) {
+		LOG_ERR("HTTP: listen failed (%d)", errno);
+		zsock_close(server_fd);
+		return;
+	}
+
+	LOG_INF("Captive portal ready on http://%s:%d",
+		 CONFIG_WIFI_SAMPLE_AP_IP_ADDRESS, HTTP_PORT);
+
+	while (1) {
+		client_fd = zsock_accept(server_fd, NULL, NULL);
+		if (client_fd < 0) {
+			LOG_ERR("HTTP: accept failed (%d)", errno);
+			continue;
+		}
+
+		zsock_send(client_fd, http_captive_page, sizeof(http_captive_page) - 1, 0);
+		zsock_close(client_fd);
+	}
+}
+
+K_THREAD_DEFINE(http_srv_tid, HTTP_SRV_STACK_SIZE,
+		http_server_thread, NULL, NULL, NULL,
+		HTTP_SRV_PRIORITY, 0, 0);
+
 static void wifi_event_handler(struct net_mgmt_event_callback *cb, uint64_t mgmt_event,
 			       struct net_if *iface)
 {
@@ -56,7 +136,14 @@ static void wifi_event_handler(struct net_mgmt_event_callback *cb, uint64_t mgmt
 		break;
 	}
 	case NET_EVENT_WIFI_AP_ENABLE_RESULT: {
-		LOG_INF("AP Mode is enabled. Waiting for station to connect");
+		struct wifi_status *status = (struct wifi_status *)cb->info;
+
+		if (status->status) {
+			LOG_ERR("AP enable failed (%d)", status->status);
+		} else {
+			LOG_INF("AP Mode is enabled. Starting captive portal...");
+			k_sem_give(&ap_ready_sem);
+		}
 		break;
 	}
 	case NET_EVENT_WIFI_AP_DISABLE_RESULT: {
@@ -155,35 +242,11 @@ static int enable_ap_mode(void)
 	return ret;
 }
 
-static int connect_to_wifi(void)
-{
-	if (!sta_iface) {
-		LOG_INF("STA: interface no initialized");
-		return -EIO;
-	}
-
-	sta_config.ssid = (const uint8_t *)CONFIG_WIFI_SAMPLE_SSID;
-	sta_config.ssid_length = sizeof(CONFIG_WIFI_SAMPLE_SSID) - 1;
-	sta_config.psk = (const uint8_t *)CONFIG_WIFI_SAMPLE_PSK;
-	sta_config.psk_length = sizeof(CONFIG_WIFI_SAMPLE_PSK) - 1;
-	sta_config.security = WIFI_SECURITY_TYPE_PSK;
-	sta_config.channel = WIFI_CHANNEL_ANY;
-	sta_config.band = WIFI_FREQ_BAND_2_4_GHZ;
-
-	LOG_INF("Connecting to SSID: %s\n", sta_config.ssid);
-
-	int ret = net_mgmt(NET_REQUEST_WIFI_CONNECT, sta_iface, &sta_config,
-			   sizeof(struct wifi_connect_req_params));
-	if (ret) {
-		LOG_ERR("Unable to Connect to (%s)", CONFIG_WIFI_SAMPLE_SSID);
-	}
-
-	return ret;
-}
-
 int main(void)
 {
 	k_sleep(K_SECONDS(5));
+
+	k_sem_init(&ap_ready_sem, 0, 1);
 
 	net_mgmt_init_event_callback(&cb, wifi_event_handler, NET_EVENT_WIFI_MASK);
 	net_mgmt_add_event_callback(&cb);
@@ -191,11 +254,13 @@ int main(void)
 	/* Get AP interface in AP-STA mode. */
 	ap_iface = net_if_get_wifi_sap();
 
-	/* Get STA interface in AP-STA mode. */
-	sta_iface = net_if_get_wifi_sta();
-
 	enable_ap_mode();
-	connect_to_wifi();
+
+	/* Wait for the AP to be fully enabled before starting the HTTP server */
+	k_sem_take(&ap_ready_sem, K_FOREVER);
+
+	/* Start the captive portal HTTP server thread */
+	k_thread_start(http_srv_tid);
 
 	return 0;
 }
