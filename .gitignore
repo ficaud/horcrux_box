@@ -6,7 +6,8 @@
 ._*
 
 # Custom folder icons
-Icon
+Icon
+
 
 # Volume root files
 .DocumentRevisions-V100
@@ -78,6 +79,14 @@ Icon
 *.map
 *.exp
 
+### Zephyr West workspace
+/.west/
+/zephyr/
+/modules/
+/bootloader/
+/python/
+/build/
+
 # Debug files
 *.dSYM/
 *.idb
@@ -141,3 +150,4 @@ htmlcov/
 
 # pyenv
 # .python-version
+apsta_mode/build-container
