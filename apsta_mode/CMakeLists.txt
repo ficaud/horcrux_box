@@ -5,4 +5,16 @@ cmake_minimum_required(VERSION 3.20.0)
 find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})
 project(wifi_apsta_mode)
 
-target_sources(app PRIVATE src/main.c)
+target_sources(app PRIVATE
+    src/main.c
+    src/access-point/src/dns.c
+    src/access-point/src/http_server.c
+    src/access-point/src/router.c
+    src/access-point/src/handlers.c
+    src/access-point/src/dhcp.c
+    src/access-point/src/wifi_mgr.c
+)
+
+target_include_directories(app PRIVATE
+    src/access-point/inc
+)
