@@ -1,0 +1,63 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# CI — Build Zephyr firmware pour ESP32-S3-DevKitC-1 (procpu)
+# Utilise l'image Docker du devcontainer (.devcontainer/Dockerfile).
+
+name: Build
+
+on:
+  push:
+    branches: [main, master, dev/jfi]
+  pull_request:
+    branches: [main, master, dev/jfi]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Free disk space
+        run: |
+          sudo apt-get clean
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/share/powershell /usr/lib/mono /usr/local/julia* /opt/hostedtoolcache
+          df -h /
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build devcontainer image
+        uses: docker/build-push-action@v6
+        with:
+          context: apsta_mode
+          file: apsta_mode/.devcontainer/Dockerfile
+          load: true
+          tags: zephyr-dev:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Setup West workspace
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}:/workspaces/horcrux \
+            -w /workspaces/horcrux \
+            zephyr-dev:latest \
+            bash -c "west init -l apsta_mode && west update"
+
+      - name: Build firmware
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}:/workspaces/horcrux \
+            -w /workspaces/horcrux/apsta_mode \
+            zephyr-dev:latest \
+            west build -b esp32s3_devkitc/esp32s3/procpu -d build .
+
+      - name: Archive firmware
+        uses: actions/upload-artifact@v4
+        with:
+          name: firmware-esp32s3
+          path: apsta_mode/build/zephyr/zephyr.bin
+          if-no-files-found: warn
