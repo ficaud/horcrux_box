@@ -15,6 +15,8 @@ fi
 echo "📦 Téléchargement des blobs Espressif…"
 
 # Extrait les URLs des blobs du module.yml et les télécharge
+# Les paths dans module.yml sont relatifs (ex: lib/esp32c6/libble_app.a).
+# Zephyr CMake les attend sous zephyr/blobs/ (convention du module HAL).
 python3 -c "
 import yaml, os, subprocess
 
@@ -22,7 +24,7 @@ with open('$MODULE_YML') as f:
     mod = yaml.safe_load(f)
 
 for blob in mod.get('blobs', []):
-    path = os.path.join('$HAL_DIR', blob['path'])
+    path = os.path.join('$HAL_DIR', 'zephyr', 'blobs', blob['path'])
     if os.path.exists(path) and os.path.getsize(path) > 0:
         continue  # déjà présent
     os.makedirs(os.path.dirname(path), exist_ok=True)
