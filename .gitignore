@@ -151,3 +151,5 @@ htmlcov/
 # pyenv
 # .python-version
 apsta_mode/build-container
+.vscode
+!apsta_mode/.vscode
