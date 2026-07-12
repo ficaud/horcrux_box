@@ -14,23 +14,31 @@ AllowShortIfStatementsOnASingleLine: false
 AllowShortLoopsOnASingleLine: false
 
 # Indentation
-IndentWidth: 8
-UseTab: Always
-ContinuationIndentWidth: 8
+IndentWidth: 4
+UseTab: Never
+ContinuationIndentWidth: 4
 AlignAfterOpenBracket: Align
+
+# Do not indent code inside extern "C" blocks
+IndentExternBlock: false
 AlignConsecutiveAssignments: false
 AlignConsecutiveDeclarations: false
 AlignOperands: true
 AlignTrailingComments: false
+IndentCaseLabels: true
 
 # Braces and spacing
-BreakBeforeBraces: Linux
+BreakBeforeBraces: Allman
 AllowAllParametersOfDeclarationOnNextLine: false
 BinPackArguments: false
 BinPackParameters: false
 BreakBeforeBinaryOperators: None
-ColumnLimit: 100
+ColumnLimit: 120
+MaxEmptyLinesToKeep: 2
 AlwaysBreakAfterReturnType: None
+
+# Penalties — encourage breaking inside parameters rather than after return type
+PenaltyReturnTypeOnItsOwnLine: 10000
 
 # Spaces
 SpaceAfterCStyleCast: false
@@ -74,5 +82,5 @@ CommentPragmas: '^ IWYU pragma:'
 FixNamespaceComments: true
 
 # Macros
-AlignConsecutiveMacros: false
+AlignConsecutiveMacros: true
 ForEachMacros: [for_each, list_for_each, SYS_INIT]
