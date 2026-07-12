@@ -20,7 +20,7 @@
 const char *handler_root(const struct http_request *req)
 {
     (void)req;
-    return page_captive;
+    return PAGE_CAPTIVE;
 }
 
 const char *handler_captive_portal(const struct http_request *req)
