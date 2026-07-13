@@ -1,5 +1,5 @@
 /**
- * @file router.c
+ * @file http_router.c
  *
  * @brief HTTP request routing for the captive portal.
  *
@@ -10,14 +10,17 @@
  *          for the captive portal.
  */
 
-#include "router.h"
+#include "http_router.h"
 
 #include <zephyr/logging/log.h>
 
-#include "handlers.h"
+#include "http_handlers.h"
 
 #include <string.h>
 
+// ===========================================================================
+// Zephyr logging module registration
+// ===========================================================================
 LOG_MODULE_REGISTER(router, LOG_LEVEL_INF);
 
 // ===========================================================================
@@ -29,8 +32,7 @@ static const struct
     handler_fn handler;
 } routes[] = {
     {"/", handler_root},
-    {"/cipher", handler_test},
-    /* All other paths fall through to handler_captive_portal */
+    {"/cipher", handler_encrypt},
 };
 
 // ===========================================================================

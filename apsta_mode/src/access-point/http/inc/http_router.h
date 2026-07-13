@@ -32,6 +32,7 @@ struct http_request
     const char *body; /* pointe dans raw (NULL si pas de body) */
     size_t body_len;
 };
+
 // ===========================================================================
 // Public function declaration
 // ===========================================================================

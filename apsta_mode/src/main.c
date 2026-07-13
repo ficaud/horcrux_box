@@ -1,8 +1,8 @@
 #include <zephyr/logging/log.h>
 
-#include "access-point/inc/dns.h"
-#include "access-point/inc/http_server.h"
-#include "access-point/inc/wifi_mgr.h"
+#include "dns.h"
+#include "http_server.h"
+#include "wifi_mgr.h"
 
 LOG_MODULE_REGISTER(MAIN);
 

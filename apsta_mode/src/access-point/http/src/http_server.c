@@ -9,28 +9,79 @@
 #include <zephyr/logging/log.h>
 #include <zephyr/net/socket.h>
 
+#include "http_router.h"
+#include "http_types.h"
 #include "page_captive.h"
-#include "router.h"
 
 #include <errno.h>
 #include <string.h>
 
+// ===========================================================================
+// Zephyr logging module registration
+// ===========================================================================
 LOG_MODULE_REGISTER(http, LOG_LEVEL_INF);
 
-/* ---------------------------------------------------------------------------
- * Configuration
- * ------------------------------------------------------------------------- */
+// ===========================================================================
+// Structure and variables definition
+// ===========================================================================
+K_THREAD_STACK_DEFINE(http_stack, HTTP_STACK_SIZE);
+static struct k_thread http_thread;
 
-#define HTTP_PORT        80
-#define HTTP_BACKLOG     5
-#define HTTP_STACK_SIZE  4096
-#define HTTP_PRIORITY    5
-#define HTTP_RX_BUF_SIZE 512
+K_THREAD_STACK_DEFINE(https_stack, HTTP_STACK_SIZE);
+static struct k_thread https_thread;
 
-/* ---------------------------------------------------------------------------
- * HTTP thread
- * ------------------------------------------------------------------------- */
+// ===========================================================================
+// Static function declarations
+// ===========================================================================
+/**
+ * @brief HTTP listener thread function.
+ *
+ * Listens for HTTP requests on TCP port 80 and serves the captive portal pages.
+ *
+ * @param arg1 Unused.
+ * @param arg2 Unused.
+ * @param arg3 Unused.
+ *
+ * @return void
+ */
+static void http_thread_fn(void *arg1, void *arg2, void *arg3);
 
+/**
+ * @brief TLS listener thread function.
+ *
+ * Listens for HTTPS requests on TCP port 443 and serves the captive portal pages.
+ * This is primarily to catch Android HTTPS probes and trigger the captive portal popup.
+ *
+ * @param arg1 Unused.
+ * @param arg2 Unused.
+ * @param arg3 Unused.
+ *
+ * @return void
+ */
+static void tls_thread_fn(void *arg1, void *arg2, void *arg3);
+// ===========================================================================
+// Public function definition
+// ===========================================================================
+int http_server_start(void)
+{
+    k_thread_create(
+        &http_thread, http_stack, HTTP_STACK_SIZE, http_thread_fn, NULL, NULL, NULL, HTTP_PRIORITY, 0, K_NO_WAIT);
+
+    k_thread_create(
+        &https_thread, https_stack, HTTP_STACK_SIZE, tls_thread_fn, NULL, NULL, NULL, HTTP_PRIORITY, 0, K_NO_WAIT);
+
+    return 0;
+}
+
+int http_server_stop(void)
+{
+    /* TODO : implémenter un flag d'arrêt + k_thread_abort() */
+    return 0;
+}
+
+// ===========================================================================
+// Static function definition
+// ===========================================================================
 static void http_thread_fn(void *arg1, void *arg2, void *arg3)
 {
     int server_fd, client_fd;
@@ -101,20 +152,12 @@ static void http_thread_fn(void *arg1, void *arg2, void *arg3)
             }
             else
             {
-                response = "HTTP/1.1 400 Bad Request\r\n"
-                           "Content-Type: text/plain\r\n"
-                           "Connection: close\r\n"
-                           "\r\n"
-                           "Bad Request";
+                response = http_responses_list[HTTP_RESPONSE_BAD_REQUEST];
             }
         }
         else
         {
-            response = "HTTP/1.1 400 Bad Request\r\n"
-                       "Content-Type: text/plain\r\n"
-                       "Connection: close\r\n"
-                       "\r\n"
-                       "Empty Request";
+            response = http_responses_list[HTTP_RESPONSE_BAD_REQUEST];
         }
 
         /* Send full response (loop: zsock_send may not send all at once) */
@@ -133,17 +176,6 @@ static void http_thread_fn(void *arg1, void *arg2, void *arg3)
         zsock_close(client_fd);
     }
 }
-
-/* ---------------------------------------------------------------------------
- * Thread resources
- * ------------------------------------------------------------------------- */
-
-K_THREAD_STACK_DEFINE(http_stack, HTTP_STACK_SIZE);
-static struct k_thread http_thread;
-
-/* ---------------------------------------------------------------------------
- * TLS listener thread — port 443 (catches Android HTTPS probes)
- * ------------------------------------------------------------------------- */
 
 static void tls_thread_fn(void *arg1, void *arg2, void *arg3)
 {
@@ -207,28 +239,4 @@ static void tls_thread_fn(void *arg1, void *arg2, void *arg3)
         }
         zsock_close(client_fd);
     }
-}
-
-K_THREAD_STACK_DEFINE(https_stack, HTTP_STACK_SIZE);
-static struct k_thread https_thread;
-
-/* ---------------------------------------------------------------------------
- * Public API
- * ------------------------------------------------------------------------- */
-
-int http_server_start(void)
-{
-    k_thread_create(
-        &http_thread, http_stack, HTTP_STACK_SIZE, http_thread_fn, NULL, NULL, NULL, HTTP_PRIORITY, 0, K_NO_WAIT);
-
-    k_thread_create(
-        &https_thread, https_stack, HTTP_STACK_SIZE, tls_thread_fn, NULL, NULL, NULL, HTTP_PRIORITY, 0, K_NO_WAIT);
-
-    return 0;
-}
-
-int http_server_stop(void)
-{
-    /* TODO : implémenter un flag d'arrêt + k_thread_abort() */
-    return 0;
 }

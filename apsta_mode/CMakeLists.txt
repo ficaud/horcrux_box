@@ -7,12 +7,13 @@ project(wifi_apsta_mode)
 
 target_sources(app PRIVATE
     src/main.c
-    src/access-point/src/dns.c
-    src/access-point/src/http_server.c
-    src/access-point/src/router.c
-    src/access-point/src/handlers.c
-    src/access-point/src/dhcp.c
-    src/access-point/src/wifi_mgr.c
+    src/access-point/http/src/http_server.c
+    src/access-point/http/src/http_handlers.c
+    src/access-point/http/src/http_types.c
+    src/access-point/http/src/http_router.c
+    src/access-point/net/src/dns.c
+    src/access-point/net/src/dhcp.c
+    src/access-point/wifi/src/wifi_mgr.c
 )
 
 # Auto-generate page_captive.h from assets (HTML + CSS)
@@ -34,6 +35,8 @@ add_custom_command(
 target_sources(app PRIVATE ${ASSETS_OUTPUT})
 
 target_include_directories(app PRIVATE
-    src/access-point/inc
+    src/access-point/http/inc
+    src/access-point/net/inc
+    src/access-point/wifi/inc
     src/access-point/assets
 )

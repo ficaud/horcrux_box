@@ -3,6 +3,9 @@
 
 #include <zephyr/net/net_if.h>
 
+// ===========================================================================
+// Public function declaration
+// ===========================================================================
 /**
  * @brief Configure the IP address and start the DHCPv4 server on the
  *        AP interface.
