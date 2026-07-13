@@ -15,4 +15,10 @@ const char *handler_root(const struct http_request *req);
  */
 const char *handler_captive_portal(const struct http_request *req);
 
+/**
+ * @brief Cipher handler — logs the 'msg' query parameter via Zephyr logging.
+ *        Called on GET /cipher?msg=...
+ */
+const char *handler_test(const struct http_request *req);
+
 #endif /* ACCESS_POINT_HANDLERS_H */

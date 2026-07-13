@@ -79,14 +79,23 @@ static void http_thread_fn(void *arg1, void *arg2, void *arg3)
             continue;
         }
 
-        /* Read the request */
-        int n = zsock_recv(client_fd, rx_buf, sizeof(rx_buf) - 1, 0);
-        if (n > 0)
+        /* Read until \r\n\r\n (end of HTTP headers) */
+        int total = 0;
+        while (total < (int)sizeof(rx_buf) - 1)
         {
-            rx_buf[n] = '\0';
+            int n = zsock_recv(client_fd, rx_buf + total, sizeof(rx_buf) - 1 - total, 0);
+            if (n <= 0)
+                break;
+            total += n;
+            rx_buf[total] = '\0';
+            if (strstr(rx_buf, "\r\n\r\n"))
+                break;
+        }
 
+        if (total > 0)
+        {
             /* Parse + dispatch */
-            if (router_parse(&req, rx_buf, n) == 0)
+            if (router_parse(&req, rx_buf, total) == 0)
             {
                 response = router_dispatch(&req);
             }
@@ -108,7 +117,19 @@ static void http_thread_fn(void *arg1, void *arg2, void *arg3)
                        "Empty Request";
         }
 
-        zsock_send(client_fd, response, strlen(response), 0);
+        /* Send full response (loop: zsock_send may not send all at once) */
+        const char *ptr = response;
+        int remaining = strlen(response);
+        while (remaining > 0)
+        {
+            int sent = zsock_send(client_fd, ptr, remaining, 0);
+            if (sent < 0)
+            {
+                break;
+            }
+            ptr += sent;
+            remaining -= sent;
+        }
         zsock_close(client_fd);
     }
 }
@@ -168,12 +189,22 @@ static void tls_thread_fn(void *arg1, void *arg2, void *arg3)
             continue;
         }
 
-        /* Just read whatever comes (TLS ClientHello) and discard,
-         * then reply with the captive portal page.
-         * Android will see a 200 HTML response and trigger the popup. */
+        /* Discard TLS ClientHello, reply with full captive portal page */
         char discard[256];
         zsock_recv(client_fd, discard, sizeof(discard), 0);
-        zsock_send(client_fd, PAGE_CAPTIVE, strlen(PAGE_CAPTIVE), 0);
+
+        const char *ptr = PAGE_CAPTIVE;
+        int remaining = strlen(PAGE_CAPTIVE);
+        while (remaining > 0)
+        {
+            int sent = zsock_send(client_fd, ptr, remaining, 0);
+            if (sent < 0)
+            {
+                break;
+            }
+            ptr += sent;
+            remaining -= sent;
+        }
         zsock_close(client_fd);
     }
 }

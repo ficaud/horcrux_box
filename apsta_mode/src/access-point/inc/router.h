@@ -8,6 +8,7 @@
 // ===========================================================================
 #define ROUTER_METHOD_MAX (8)
 #define ROUTER_PATH_MAX   (64)
+#define ROUTER_QUERY_MAX  (128)
 
 // ===========================================================================
 // Typedef and structure definition
@@ -27,6 +28,7 @@ struct http_request
 {
     char method[ROUTER_METHOD_MAX];
     char path[ROUTER_PATH_MAX];
+    char query[ROUTER_QUERY_MAX];
     const char *body; /* pointe dans raw (NULL si pas de body) */
     size_t body_len;
 };

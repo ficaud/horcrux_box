@@ -12,9 +12,13 @@
 
 #include "router.h"
 
+#include <zephyr/logging/log.h>
+
 #include "handlers.h"
 
 #include <string.h>
+
+LOG_MODULE_REGISTER(router, LOG_LEVEL_INF);
 
 // ===========================================================================
 // Variables definition
@@ -25,6 +29,7 @@ static const struct
     handler_fn handler;
 } routes[] = {
     {"/", handler_root},
+    {"/cipher", handler_test},
     /* All other paths fall through to handler_captive_portal */
 };
 
@@ -76,6 +81,32 @@ int router_parse(struct http_request *req, char *raw, size_t raw_len)
     memcpy(req->path, path_start, path_len);
     req->path[path_len] = '\0';
 
+    /* ── Query string (after ?) ── */
+
+    if (ptr < end && *ptr == '?')
+    {
+        ptr++; /* skip '?' */
+        char *query_start = ptr;
+
+        while (ptr < end && *ptr != ' ')
+        {
+            ptr++;
+        }
+
+        size_t query_len = ptr - query_start;
+        if (query_len >= ROUTER_QUERY_MAX)
+        {
+            query_len = ROUTER_QUERY_MAX - 1;
+        }
+
+        memcpy(req->query, query_start, query_len);
+        req->query[query_len] = '\0';
+    }
+    else
+    {
+        req->query[0] = '\0';
+    }
+
     /* ── Body (after \r\n\r\n) ── */
 
     char *body_start = strstr(raw, "\r\n\r\n");
@@ -104,9 +135,11 @@ const char *router_dispatch(const struct http_request *req)
     {
         if (strcmp(req->path, routes[i].path) == 0)
         {
+            LOG_INF("ROUTE %s -> handler #%d", req->path, i);
             return routes[i].handler(req);
         }
     }
 
+    LOG_DBG("ROUTE %s -> captive_portal (fallback)", req->path);
     return handler_captive_portal(req);
 }
