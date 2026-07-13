@@ -16,7 +16,7 @@ manifest:
   projects:
     - name: zephyr
       remote: zephyrproject
-      revision: v4.2.2
+      revision: v4.4.1
       west-commands: scripts/west-commands.yml
       import:
         name-allowlist:
@@ -24,6 +24,7 @@ manifest:
           - mcuboot
           - picolibc
           - mbedtls
+          - tf-psa-crypto
           - zcbor
 
   self:

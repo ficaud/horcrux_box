@@ -63,12 +63,21 @@ RUN pip3 install --no-cache-dir --break-system-packages \
     anytree \
     pykwalify \
     python-magic \
-    psutil
+    psutil \
+    pyyaml \
+    requests \
+    jsonschema
 
 # ------------------------------------------------------------------
-# 3. Zephyr SDK (includes xtensa-esp32s3 toolchain)
+# 3. Zephyr SDK (xtensa-esp32s3 toolchain + cmake scaffolding)
 # ------------------------------------------------------------------
-ENV ZEPHYR_SDK_VERSION=0.16.8
+# The SDK 1.0.1 _gnu bundle (~2 GB) is unreliable to download in CI.
+# We use a two-step approach:
+#   1. The full _gnu bundle for the small cmake scaffolding (< 20 MB)
+#      (cmake/ comes first in the tar, so extraction is fast)
+#   2. The individual ESP32-S3 toolchain tarball (~200 MB) extracted
+#      on top, ensuring the toolchain is always complete.
+ENV ZEPHYR_SDK_VERSION=1.0.1
 ENV ZEPHYR_SDK_INSTALL_DIR=/opt/zephyr-sdk
 
 RUN ARCH="$(uname -m)" \
@@ -77,24 +86,43 @@ RUN ARCH="$(uname -m)" \
         aarch64|arm64) SDK_ARCH="aarch64" ;; \
         *) echo "Unsupported architecture: ${ARCH}" && exit 1 ;; \
     esac \
-    && wget -q "https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v${ZEPHYR_SDK_VERSION}/zephyr-sdk-${ZEPHYR_SDK_VERSION}_linux-${SDK_ARCH}.tar.xz" \
-    -O /tmp/zephyr-sdk.tar.xz \
-    && tar -xf /tmp/zephyr-sdk.tar.xz -C /opt/ \
+    && TOOLCHAIN="xtensa-espressif_esp32s3_zephyr-elf" \
+    && FULL_SDK_URL="https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v${ZEPHYR_SDK_VERSION}/zephyr-sdk-${ZEPHYR_SDK_VERSION}_linux-${SDK_ARCH}_gnu.tar.xz" \
+    && TOOLCHAIN_URL="https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v${ZEPHYR_SDK_VERSION}/toolchain_gnu_linux-${SDK_ARCH}_${TOOLCHAIN}.tar.xz" \
+    # 3a. Full SDK bundle (cmake scaffolding, small files first in tar)
+    && echo "Downloading SDK cmake scaffolding..." \
+    && wget -q --show-progress --tries=5 --timeout=120 -O /tmp/sdk-full.tar.xz "${FULL_SDK_URL}" \
+    && tar -xf /tmp/sdk-full.tar.xz -C /opt/ \
+    && [ -d "/opt/zephyr-sdk-${ZEPHYR_SDK_VERSION}" ] \
     && mv "/opt/zephyr-sdk-${ZEPHYR_SDK_VERSION}" "${ZEPHYR_SDK_INSTALL_DIR}" \
-    && rm /tmp/zephyr-sdk.tar.xz \
-    && cd "${ZEPHYR_SDK_INSTALL_DIR}" \
-    && ./setup.sh -t xtensa-espressif_esp32s3_zephyr-elf \
-    && rm -rf "${ZEPHYR_SDK_INSTALL_DIR}"/sysroots/*/usr/share/doc \
-    && rm -rf "${ZEPHYR_SDK_INSTALL_DIR}"/*.tar.* \
-    && for dir in "${ZEPHYR_SDK_INSTALL_DIR}"/*/; do \
-        tc="$(basename "$dir")"; \
-        [ "$tc" = "xtensa-espressif_esp32s3_zephyr-elf" ] && continue; \
-        [ "$tc" = "cmake" ] && continue; \
-        [ "$tc" = "hosttools" ] && continue; \
-        [ "$tc" = "sysroots" ] && continue; \
-        echo "Removing unused toolchain: $tc"; \
-        rm -rf "$dir"; \
-    done
+    && rm /tmp/sdk-full.tar.xz \
+    # 3b. Overlay the ESP32-S3 toolchain from its individual tarball (guarantees it's complete)
+    && echo "Downloading ESP32-S3 toolchain..." \
+    && wget -q --show-progress --tries=5 --timeout=120 -O /tmp/toolchain.tar.xz "${TOOLCHAIN_URL}" \
+    && mkdir -p "${ZEPHYR_SDK_INSTALL_DIR}/gnu" \
+    && rm -rf "${ZEPHYR_SDK_INSTALL_DIR}/gnu/${TOOLCHAIN}" \
+    && tar -xf /tmp/toolchain.tar.xz -C "${ZEPHYR_SDK_INSTALL_DIR}/gnu/" \
+    && rm /tmp/toolchain.tar.xz \
+    # 3c. Strip all other toolchains (save ~2 GB)
+    && if [ -d "${ZEPHYR_SDK_INSTALL_DIR}/gnu" ]; then \
+         for dir in "${ZEPHYR_SDK_INSTALL_DIR}"/gnu/*/; do \
+           [ -d "$dir" ] || continue; \
+           tc="$(basename "$dir")"; \
+           [ "$tc" = "${TOOLCHAIN}" ] && continue; \
+           echo "Removing unused toolchain: $tc"; \
+           rm -rf "$dir"; \
+         done; \
+       fi \
+    # 3d. Update sdk_gnu_toolchains to list only the one we keep
+    && echo "${TOOLCHAIN}" > "${ZEPHYR_SDK_INSTALL_DIR}/sdk_gnu_toolchains" \
+    # 3e. Verify the toolchain is usable before proceeding
+    && TOOLCHAIN_BIN="${ZEPHYR_SDK_INSTALL_DIR}/gnu/${TOOLCHAIN}/bin/${TOOLCHAIN}-gcc" \
+    && if [ ! -x "${TOOLCHAIN_BIN}" ]; then \
+         echo "ERROR: Toolchain not found at ${TOOLCHAIN_BIN}"; \
+         ls -la "${ZEPHYR_SDK_INSTALL_DIR}/gnu/" 2>/dev/null || echo "gnu/ empty or missing"; \
+         exit 1; \
+       fi \
+    && echo "SDK installed successfully (${TOOLCHAIN} verified)"
 
 # ------------------------------------------------------------------
 # 4. Environment setup
