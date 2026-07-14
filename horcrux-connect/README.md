@@ -4,18 +4,14 @@
 
 ## Quick Start - flash ESP32
 
-### Via ESPWEBTOOL
-
-
-**Requirements** : 
-
-Board's compatibility :
+What boards ?
 * ESP32-S3-DevKitC-1
 
-Latest firmware release : 
+Where is the latest firmware release ?
 * [last release](https://github.com/ficaud/horcrux_box/releases)
 
-**How to flash the firmware** : 
+
+### Via ESPWEBTOOL
 
 1. Go to [ESPWEBTOOL](https://esptool.spacehuhn.com/) and connect to your board by selecting the correct serial port.
 
@@ -31,10 +27,6 @@ Latest firmware release :
 
 - Python 3.6+
 - [esptool](https://github.com/espressif/esptool) Python package
-- USB cable (data-capable) to connect the board to your computer
-
-Board's compatibility :
-* ESP32-S3-DevKitC-1
 
 **1. Install esptool**
 
@@ -96,31 +88,6 @@ Replace `<YOUR_PORT>` with the port detected in step 2, and `path/to/firmware.bi
 
 Below are the basic steps to build, flash, and monitor the serial output of the Horcrux-Connect firmware on the ESP32.
 
-### Build and Flash
+## Contribution
 
-In the development environment, you can build and program the Horcrux ESP32 using `tasks.json` in VSCode:
-
-```bash
-Ctrl + Shift + P → Tasks: Run Task → Pristine Build (esp32s3_devkitc/procpu) or Build (esp32s3_devkitc/procpu)
-```
-
-Then, from the host where the ESP32 is connected, flash the firmware as follows:
-
-```bash
-./host-flash.sh
-```
-
-### Monitor the Serial Output
-
-**Note:** You need `west` installed in your host environment to monitor the serial output. Install it using pip:
-
-```bash
-pip install west
-```
-
-From the host where the ESP32 is connected, monitor the serial output as follows:
-
-```bash
-source ~/zephyrproject/.venv/bin/activate
-west espressif monitor
-```
+In [contribution](doc/contribution.md), you'll find all the required information to build and flash the Horcrux-Connect ESP32 firmware.
