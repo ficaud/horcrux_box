@@ -150,4 +150,6 @@ htmlcov/
 
 # pyenv
 # .python-version
-apsta_mode/build-container
+.vscode
+!horcrux-connect/.vscode
+horcrux-connect/build-container

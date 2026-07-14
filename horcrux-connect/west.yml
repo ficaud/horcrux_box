@@ -1,0 +1,31 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# West manifest minimal pour ESP32-S3-DevKitC-1.
+# Ne télécharge que les modules strictement nécessaires au build
+# Wi-Fi AP-STA sur la cible esp32s3_devkitc/esp32s3/procpu.
+
+manifest:
+  version: 0.8
+  defaults:
+    remote: zephyrproject
+
+  remotes:
+    - name: zephyrproject
+      url-base: https://github.com/zephyrproject-rtos
+
+  projects:
+    - name: zephyr
+      remote: zephyrproject
+      revision: v4.4.1
+      west-commands: scripts/west-commands.yml
+      import:
+        name-allowlist:
+          - hal_espressif
+          - mcuboot
+          - picolibc
+          - mbedtls
+          - tf-psa-crypto
+          - zcbor
+
+  self:
+    path: horcrux-connect
