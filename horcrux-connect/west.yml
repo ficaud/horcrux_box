@@ -28,4 +28,4 @@ manifest:
           - zcbor
 
   self:
-    path: apsta_mode
+    path: horcrux-connect
