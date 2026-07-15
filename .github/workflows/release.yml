@@ -21,6 +21,13 @@ permissions:
 
 jobs:
   build:
+    strategy:
+      matrix:
+        target:
+          - board: esp32s3_devkitc/esp32s3/procpu
+            artifact: firmware-esp32s3
+          - board: doit_esp32_devkit_v1/esp32/procpu
+            artifact: firmware-esp32-wroom
     runs-on: ubuntu-latest
 
     steps:
@@ -54,18 +61,43 @@ jobs:
             zephyr-dev:latest \
             bash -c "west init -l horcrux-connect && west update"
 
-      - name: Build firmware
+      - name: Build firmware (${{ matrix.target.artifact }})
         run: |
           docker run --rm \
             -v ${{ github.workspace }}:/workspaces/horcrux \
             -w /workspaces/horcrux/horcrux-connect \
             zephyr-dev:latest \
-            west build -b esp32s3_devkitc/esp32s3/procpu -d build .
+            west build -b ${{ matrix.target.board }} -p always -d build .
 
       - name: Prepare release artifact
         run: |
           mkdir -p release-artifacts
-          cp horcrux-connect/build/zephyr/zephyr.bin release-artifacts/
+          cp horcrux-connect/build/zephyr/zephyr.bin release-artifacts/${{ matrix.target.artifact }}.bin
+          cp horcrux-connect/build/zephyr/zephyr.elf release-artifacts/${{ matrix.target.artifact }}.elf
+          cp horcrux-connect/build/zephyr/zephyr.map release-artifacts/${{ matrix.target.artifact }}.map
+
+      - name: Determine version
+        id: version
+        run: |
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            echo "tag=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+          else
+            echo "tag=${GITHUB_REF_NAME}" >> $GITHUB_OUTPUT
+          fi
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-artifacts
+
+      - name: Flatten artifacts
+        run: |
+          mkdir -p flattened
+          find release-artifacts -type f \( -name '*.bin' -o -name '*.elf' -o -name '*.map' \) -exec cp {} flattened/ \;
 
       - name: Determine version
         id: version
@@ -84,12 +116,25 @@ jobs:
           body: |
             ## Horcrux-Connect Firmware ${{ steps.version.outputs.tag }}
 
-            Firmware pour **ESP32-S3-DevKitC-1 (procpu)** — Point d'accès Wi-Fi avec portail captif.
+            Firmware for **ESP32-S3-DevKitC-1** and **ESP32-DevKit-V1 (WROOM-32)**.
 
-            ### Flash
+            Wi-Fi captive portal access point (SSID: `Horcrux-box`).
+
+            ### Flashing instructions
+
+            **ESP32-S3** (flash offset `0x0`):
             ```bash
-            esptool.py write_flash 0x0 zephyr.bin
+            esptool --chip esp32s3 --port <PORT> --baud 921600 \
+              write-flash 0x0 firmware-esp32s3.bin
             ```
-          files: release-artifacts/*
+
+            **ESP32 (WROOM-32)** (flash offset `0x1000`):
+            ```bash
+            esptool --chip esp32 --port <PORT> --baud 460800 \
+              write-flash 0x1000 firmware-esp32-wroom.bin
+            ```
+
+            > **Note:** ESP32 requires offset `0x1000` because the first 4 KB flash sector is reserved by the ROM bootloader.
+          files: flattened/*
           draft: true
           generate_release_notes: false
