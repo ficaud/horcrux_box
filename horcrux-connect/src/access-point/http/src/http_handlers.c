@@ -16,6 +16,7 @@
 
 #include "http_types.h"
 #include "page_captive.h"
+#include "sss.h"
 
 #include <ctype.h>
 #include <stdio.h>
@@ -117,6 +118,38 @@ const char *handler_encrypt(const struct http_request *req)
             url_decode(msg_buf, raw, sizeof(msg_buf));
 
             LOG_INF("Secret to encrypt: %s", msg_buf);
+
+
+            /* --- Shamir's Secret Sharing --- */
+            size_t secret_len = strlen(msg_buf);
+            if (secret_len > 0 && secret_len <= SSS_MAX_SECRET_LEN)
+            {
+                struct sss_share shares[SSS_N];
+                int ret = sss_split((const uint8_t *)msg_buf, secret_len, SSS_N, SSS_K, shares);
+                if (ret == 0)
+                {
+                    LOG_DBG("SSS split OK — %u shares (threshold %u)", SSS_N, SSS_K);
+                    for (unsigned int i = 0; i < SSS_N; i++)
+                    {
+                        /* Format share data as hex string for logging */
+                        char hex[SSS_MAX_SECRET_LEN * 3 + 1] = {0};
+                        size_t pos = 0;
+                        for (size_t j = 0; j < shares[i].len && pos < sizeof(hex) - 3; j++)
+                        {
+                            pos += snprintf(hex + pos, sizeof(hex) - pos, "%02x ", shares[i].data[j]);
+                        }
+                        LOG_DBG("Share #%u (x=%u): len=%zu data=[%s]", i + 1, shares[i].x, shares[i].len, hex);
+                    }
+                }
+                else
+                {
+                    LOG_ERR("sss_split failed: %d", ret);
+                }
+            }
+            else
+            {
+                LOG_WRN("Secret too long (%zu bytes, max %u)", secret_len, SSS_MAX_SECRET_LEN);
+            }
         }
     }
 

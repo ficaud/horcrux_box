@@ -153,3 +153,6 @@ htmlcov/
 .vscode
 !horcrux-connect/.vscode
 horcrux-connect/build-container
+
+# certificate 
+public.pem
