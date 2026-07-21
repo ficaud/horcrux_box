@@ -19,27 +19,6 @@ What boards ?
 Where is the latest firmware release ?
 * [last release](https://github.com/ficaud/horcrux-core/releases)
 
-
-### Via ESPWEBTOOL
-
-1. Go to [ESPWEBTOOL](https://esptool.spacehuhn.com/) and connect to your board by selecting the correct serial port.
-
-2. Reset the board in bootloader mode:
-   - Press and hold the **BOOT** button.
-   - While holding **BOOT**, press and release the **EN/RESET** button.
-   - Release the **BOOT** button.
-
-3. In the memory map, remove all sectors except the one containing the firmware:
-
-   | Board | Keep this sector | Flash offset |
-   |---|---|---|
-   | **ESP32-S3** | `0x00000` (first sector) | `0x0` |
-   | **ESP32** | `0x01000` (second sector) | `0x1000` |
-
-   > The ESP32 ROM bootloader requires the firmware at offset `0x1000` (the first 4 KB sector is reserved). The ESP32-S3 accepts it at `0x0`.
-
-4. Select the firmware binary file and click **PROGRAM**.
-
 ### Via ESPTOOL (Python)
 
 **Requirements** :
