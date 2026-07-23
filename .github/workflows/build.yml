@@ -62,9 +62,9 @@ jobs:
       matrix:
         target:
           - board: esp32s3_devkitc/esp32s3/procpu
-            artifact: firmware-esp32s3
+            artifact: fw-esp32-s3-devkitc-1
           - board: doit_esp32_devkit_v1/esp32/procpu
-            artifact: firmware-esp32-wroom
+            artifact: fw-esp32-devkit-v1
     runs-on: ubuntu-latest
 
     steps:
